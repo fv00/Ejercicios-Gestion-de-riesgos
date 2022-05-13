@@ -1,0 +1,10 @@
+---
+title: "Ejercicios basicos de modelamiento"
+author: "Santiago Franco"
+date: "12/5/2022"
+output: html_document
+---
+
+```{r}
+datos <- read.csv()
+```
