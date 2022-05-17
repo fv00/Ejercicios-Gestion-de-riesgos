@@ -2,9 +2,240 @@
 title: "Ejercicios basicos de modelamiento"
 author: "Santiago Franco"
 date: "12/5/2022"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
+
 ```{r}
-datos <- read.csv()
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(dplyr)
+library(magrittr)
+library(ROCit)
+library(stringr)
 ```
+
+```{r}
+mapa_de_calor <- function(categoria1, categoria2, relleno){
+  p <- ggplot(aes(x=categoria1, y=categoria2, fill= relleno)) + geom_tile()
+  return(p)
+}
+```
+
+
+
+```{r}
+datos <- read.table("C:\\Users\\SantiagoFranco\\OneDrive - DATAKNOW S.A.S\\Documentos\\Ejercicios-Gestion-de-riesgos\\Trabajo 2\\base6.dat", header = TRUE)
+tabla_mostrar <- head(datos) %>%
+  mutate_if(is.numeric, round, digits=2)
+names(tabla_mostrar) <- str_replace_all(names(tabla_mostrar), "\\.", ' ')
+(names(tabla_mostrar))
+grid.table(tabla_mostrar, theme=ttheme_default(base_size = 4))
+```
+
+## Preparación datos para el modelo:
+
+```{r}
+## Variables categóricas:
+datos$tamaño <- as.factor(datos$tamaño)
+datos$sector <- as.factor(datos$sector)
+datos$Default <- as.factor(datos$Default)
+
+
+## Datos para el modelo
+datos_modelo <- datos[-c(3)]
+```
+
+## Análisis descriptivo de los datos
+
+### Variable respuesta
+
+```{r}
+ggplot(data=datos, aes(x=Default)) + 
+  geom_bar() + 
+  geom_text(stat='count', aes(label=round(..count../sum(..count..),2)), vjust=-1) + 
+  ylim(0,770) + 
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) + ggtitle('Cantidad de carteras en default')
+```
+A simple vista se observa que se tienen dos categorías desbalanceadas en la base de datos para establecer el modelo.
+
+
+### Tamaño de la empresa
+```{r}
+### Heatmap
+p <- ggplot(data=datos, aes(x=tamaño, fill=Default)) +
+  geom_bar(position = 'dodge') +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) 
+p
+```
+
+### Sector
+
+```{r}
+### Heatmap
+p <- ggplot(data=datos, aes(x=sector, fill=Default)) +
+  geom_bar(position = 'dodge') +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank()) 
+p
+```
+
+
+### Margen Operativo
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Default,
+                       y=UtilNeta.Patrimonio,
+                       fill=Default)) +
+  geom_violin(trim = F)
+```
+
+
+### Margen Ebitda
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(y=Default,
+                       x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot()
+```
+
+
+### Ebitda/ Gasto Financiero
+
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot(position = 'dodge')
+```
+
+
+### Pasivo Fcro. Total / (Ebitda - Gasto Fcro)
+
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot(position = 'dodge')
+```
+
+
+### Margen Neto
+
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot(position = 'dodge')
+```
+
+### Ebitda / Activo Total
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot(position = 'dodge')
+```
+
+### SALDO DEUDA
+```{r}
+### Grafica violín
+ggplot(data=datos, aes(x=Ebitda.ActivoTotal,
+                       fill=Default)) +
+  geom_boxplot(position = 'dodge')
+```
+
+
+##Implementacion modelo logit
+
+```{r}
+datos_modelo <- datos[4:11]
+modelo_logit <- glm(Default ~ ., family = binomial, data=datos_modelo)
+summary(modelo_logit)
+```
+### Depuración del modelo:
+
+A simple vista se observa que las variables categóricas pertenecientes a la base de datos no tienen aparentemente diferencias signficativas respecto a la cantidad de default que hay asociado a una categoría, es decir, aparentemente la probabilidad de default es homogenea entre carteras. Por lo que se realiza un modelo sin incluir las variables categóricas:
+
+```{r}
+datos_modelo_1 <- datos[5:11]
+modelo_depuracion1 <-  glm(Default ~ ., family = binomial, data=datos_modelo_1)
+summary(modelo_depuracion1)
+```
+```{r}
+data.frame(cor(datos_modelo_1[1:6]))
+```
+```{r}
+datos_modelo_final <- datos[c('UtilNeta.Patrimonio', 'Ciclo.Efectivo', 'Pasivo.Activos', 'Default')]
+modelo_final <- glm(Default ~ ., family = binomial, data=datos_modelo_final)
+summary(modelo_final)
+```
+
+###Tabla de coeficientes
+
+summary(modelo_logit)
+###Valores P
+
+###Pruebas de ajuste
+
+### Validacion cruzada
+
+```{r}
+options(scipen=999)
+predicciones_originales <- predict(modelo_final, type = 'response')
+predicciones <- ifelse(predicciones_originales >0.5, 1, 0)
+table(predicciones, datos$Default)
+```
+
+
+###Curva ROC
+
+```{r}
+roc <- rocit(score = predicciones_originales, class=datos$Default)
+plot(roc)
+```
+
+
+##Implementacion de random forest
+
+```{r}
+
+```
+
+###Curva ROC
+
+##Implementacion de Knn
+
+```{r}
+
+```
+
+###Curva ROC
+
+##Implementacion de SVM
+```{r}
+
+```
+
+###Curva ROC
+
+## Curva ROC para todos los modelos
+## AUC de todos los modelos
+
+##Simulacion con la peor estimacion
+
+##Simulacion con la mejor estimacion
+
+### Comparacion de resultados

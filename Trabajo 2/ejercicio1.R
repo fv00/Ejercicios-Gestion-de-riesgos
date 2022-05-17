@@ -1,6 +1,7 @@
 require(caret)
 
 datos <- read.table("C:\\Users\\SantiagoFranco\\OneDrive - DATAKNOW S.A.S\\Documentos\\Ejercicios-Gestion-de-riesgos\\Trabajo 2\\base6.dat", header = TRUE)
+head(datos)
 datos_modelo <- datos[4:11]
 
 ##Implementacion modelo logit
