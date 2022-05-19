@@ -15,6 +15,7 @@ library(gridExtra)
 library(dplyr)
 library(magrittr)
 library(ROCit)
+library(randomForest)
 library(stringr)
 ```
 
@@ -95,10 +96,10 @@ p
 ### Margen Operativo
 ```{r}
 ### Grafica violín
-ggplot(data=datos, aes(x=Default,
-                       y=UtilNeta.Patrimonio,
+ggplot(data=datos, aes(y=Default,
+                       x=UtilNeta.Patrimonio,
                        fill=Default)) +
-  geom_violin(trim = F)
+  geom_boxplot(trim = F)
 ```
 
 
@@ -193,13 +194,10 @@ summary(modelo_logit)
 ### Validacion cruzada
 
 ```{r}
-options(scipen=999)
 predicciones_originales <- predict(modelo_final, type = 'response')
-predicciones <- ifelse(predicciones_originales >0.5, 1, 0)
+predicciones <- ifelse(predicciones_originales >0.2, 1, 0)
 table(predicciones, datos$Default)
 ```
-
-
 ###Curva ROC
 
 ```{r}
@@ -211,18 +209,57 @@ plot(roc)
 ##Implementacion de random forest
 
 ```{r}
-
+rf <- randomForest(Default ~ ., data = datos_modelo_final)
+```
+```{r}
+library(rpart)
+library(party)
 ```
 
+```{r}
+x <- ctree(Default ~ ., data = datos_modelo_final)
+plot(x, type='simple')
+```
+```{r}
+pesos_rf <- rf$votes[,2]
+```
+
+
 ###Curva ROC
+```{r}
+roc_rf <- rocit(pesos_rf, class = datos$Default)
+plot(roc_rf)
+```
+
 
 ##Implementacion de Knn
 
 ```{r}
-
+library(kernlab)
+library(caret)
+library(randomForest)
 ```
 
+```{r}
+modelos_knn <- list()
+for (i in 1:10) {
+  modelo_knn <- knn3(Default ~ ., data=datos_modelo_final, k=i)
+  modelos_knn[[i]] <- sum(predict(modelo_knn, newdata=datos_modelo_final)[,2] == datos$Default)/length(datos$Default)
+}
+#K=2
+modelo_knn <- knn3(Default ~ ., data=datos_modelo_final, k=2)
+pesos <- predict(modelo_knn, newdata=datos_modelo_final, type ="prob")[,2]
+```
+
+
 ###Curva ROC
+
+```{r}
+roc_knn <- rocit(score=pesos, class=datos$Default)
+plot(roc_knn)
+##Depurar !!
+```
+
 
 ##Implementacion de SVM
 ```{r}
