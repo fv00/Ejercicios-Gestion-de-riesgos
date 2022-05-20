@@ -3,8 +3,8 @@ title: "Ejercicios basicos de modelamiento"
 author: "Santiago Franco"
 date: "12/5/2022"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 
@@ -17,6 +17,8 @@ library(magrittr)
 library(ROCit)
 library(randomForest)
 library(stringr)
+library(stats)
+library(glmtoolbox)
 ```
 
 ```{r}
@@ -29,7 +31,7 @@ mapa_de_calor <- function(categoria1, categoria2, relleno){
 
 
 ```{r}
-datos <- read.table("C:\\Users\\SantiagoFranco\\OneDrive - DATAKNOW S.A.S\\Documentos\\Ejercicios-Gestion-de-riesgos\\Trabajo 2\\base6.dat", header = TRUE)
+datos <- read.table("base6.dat", header = TRUE)
 tabla_mostrar <- head(datos) %>%
   mutate_if(is.numeric, round, digits=2)
 names(tabla_mostrar) <- str_replace_all(names(tabla_mostrar), "\\.", ' ')
@@ -186,10 +188,16 @@ summary(modelo_final)
 
 ###Tabla de coeficientes
 
-summary(modelo_logit)
+```{r}
+summary(modelo_final)
+```
 ###Valores P
 
 ###Pruebas de ajuste
+
+```{r}
+hltest(modelo_final)
+```
 
 ### Validacion cruzada
 
@@ -205,12 +213,19 @@ roc <- rocit(score = predicciones_originales, class=datos$Default)
 plot(roc)
 ```
 
+## Gráfica de las densidades de las probabilidades de default estimadas por modelo logit
+```{r}
+d.hat = modelo_final$fitted.values
+plot(density(d.hat))
+```
+* escribir al final las 4 gráficas con un marplot
 
 ##Implementacion de random forest
 
 ```{r}
 rf <- randomForest(Default ~ ., data = datos_modelo_final)
 ```
+
 ```{r}
 library(rpart)
 library(party)
@@ -220,12 +235,16 @@ library(party)
 x <- ctree(Default ~ ., data = datos_modelo_final)
 plot(x, type='simple')
 ```
+
+## Gráfica de las densidades de las probabilidades de default estimadas por bosques aleatorios
+
 ```{r}
 pesos_rf <- rf$votes[,2]
+plot(density(pesos_rf))
 ```
 
 
-###Curva ROC
+###Curva ROC arboles aleatorios
 ```{r}
 roc_rf <- rocit(pesos_rf, class = datos$Default)
 plot(roc_rf)
@@ -250,7 +269,6 @@ for (i in 1:10) {
 modelo_knn <- knn3(Default ~ ., data=datos_modelo_final, k=2)
 pesos <- predict(modelo_knn, newdata=datos_modelo_final, type ="prob")[,2]
 ```
-
 
 ###Curva ROC
 
