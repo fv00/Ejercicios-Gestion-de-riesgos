@@ -278,16 +278,75 @@ plot(roc_knn)
 ##Depurar !!
 ```
 
+## Gráfica de las densidades de las probabilidades de default estimadas por knn
+
+```{r}
+pesos_knn <- modelos_knn$learn$X
+plot(density(modelo_knn))
+```
 
 ##Implementacion de SVM
-```{r}
 
+```{r}
+library(kernlab)
+library(caret)
+library(randomForest)
 ```
+
+
+```{r}
+sigDist1 <- sigest(Default ~ ., data=datos_modelo_final, frac = 1)
+```
+
+```{r}
+svmTuneGrid <- data.frame(.sigma = sigDist1[1], .C = 2^(-2:7))
+```
+
+
+```{r}
+y1 = as.factor(datos_modelo_final$Default)
+levels(y1) = c("No","Yes")
+```
+
+```{r}
+svm1 <- train(y1 ~ .,
+data = datos_modelo_final,
+method = "svmRadial",
+preProc = c("center", "scale"),
+tuneGrid = svmTuneGrid,
+trControl = trainControl(method = "repeatedcv", repeats = 5,
+classProbs = TRUE))
+```
+
 
 ###Curva ROC
 
+### GRÁFICOS DE DENSIDAD PARA TODOS LOS MODELOS
+```{r}
+par(mfrow = c(2,2))
+plot(density(d.hat), main = "Densidad Modelo Logid")
+plot(density(pesos_rf), main = "Densidad Bosques Aleatorios")
+```
+
+
 ## Curva ROC para todos los modelos
+
+```{r}
+par(mfrow = c(2,2))
+plot(roc)
+plot(roc_rf)
+plot(roc_knn)
+```
+
+
 ## AUC de todos los modelos
+
+```{r}
+library(pROC)
+roc.test(roc, roc_rf)
+
+```
+
 
 ##Simulacion con la peor estimacion
 
