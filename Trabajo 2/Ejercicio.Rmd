@@ -19,6 +19,8 @@ library(randomForest)
 library(stringr)
 library(stats)
 library(glmtoolbox)
+library(PDQutils)
+require(GoFKernel)
 ```
 
 ```{r}
@@ -199,7 +201,7 @@ summary(modelo_final)
 hltest(modelo_final)
 ```
 
-### Validacion cruzada
+### Matriz de confusión
 
 ```{r}
 predicciones_originales <- predict(modelo_final, type = 'response')
@@ -352,13 +354,252 @@ plot(roc_svm)
 ## AUC de todos los modelos
 
 ```{r}
-library(pROC)
-roc.test(roc, roc_rf)
+titulos <- c('Knn', 'SVM', 'logit', 'RF')
+AUCs <- c(roc_knn$AUC[1], roc_svm$AUC[1], roc$AUC[1], roc_rf$AUC)
+
+tabla <- rbind(AUCs)
+colnames(tabla) <- titulos
+tabla
 ```
 
+Se decide utilizar el modelo knn
 
-##Simulacion con la peor estimacion
+## Simulación:
 
-##Simulacion con la mejor estimacion
 
-### Comparacion de resultados
+### Mejor modelo según AUC
+Se particionan los datos según su probabilidad de impago:
+
+```{r}
+datos_mejor_modelo <- cbind(datos[,c('Default', 'Saldos')], Impago=predicciones_originales)
+```
+
+Se particionan los datos según su probabilidad estimada de impago:
+```{r}
+mejor_modelo_pago <- datos_mejor_modelo[datos_mejor_modelo['Impago'] < 0.1,]
+mejor_modelo_impago <- datos_mejor_modelo[datos_mejor_modelo['Impago'] > 0.1,]
+```
+
+```{r}
+lj = mejor_modelo_pago[['Saldos']]
+pj = mejor_modelo_pago[['Impago']]
+qj = 1 - pj
+```
+
+Se calculan cumulantes para ambos subconjuntos (En este caso se asume que $w_i=0$:
+```{r}
+#Cumulantes para L1
+kappa_mejor_l1 = double(4)
+kappa_mejor_l1[1] = sum(lj*pj)
+kappa_mejor_l1[2] = sum(pj*qj*lj^2 )
+kappa_mejor_l1[3] = sum(lj^3*pj*qj*(qj - pj))
+kappa_mejor_l1[4] = sum(lj^4*pj*qj*(pj - 4*pj*qj  + qj^2))
+```
+
+```{r}
+lj = mejor_modelo_impago[['Saldos']]
+pj = mejor_modelo_impago[['Impago']]
+qj = 1 - pj
+
+#Cumulantes para L2
+kappa_mejor_l2 = double(4)
+kappa_mejor_l2[1] = sum(lj*pj)
+kappa_mejor_l2[2] = sum(pj*qj*lj^2 )
+kappa_mejor_l2[3] = sum(lj^3*pj*qj*(qj - pj))
+kappa_mejor_l2[4] = sum(lj^4*pj*qj*(pj - 4*pj*qj  + qj^2))
+```
+
+```{r}
+set.seed(1)
+Laj = cumulant2moment(kappa_mejor_l1) 
+
+mx = kappa_mejor_l1[1]+4*sqrt(kappa_mejor_l1[2])
+mx0 = kappa_mejor_l1[1]-2*sqrt(kappa_mejor_l1[2])
+
+
+xe = seq(0,mx, by=10000000)
+
+
+# estimación de la densidad de L 
+fx.gch = dapx_gca(xe, raw.moments=Laj, 
+                  support=c(0,mx), 
+                  basis='gamma')
+
+# acumulada
+FL1_mejor_modelo = function(t){
+  papx_gca(t, raw.moments=Laj, 
+           support=c(0,mx), 
+           basis='gamma')}
+
+plot(xe,FL1_mejor_modelo(xe))
+plot(xe, fx.gch)
+
+inversa_L1_mejor_modelo <- inverse(FL1_mejor_modelo,lower=0,upper=mx)
+
+muestra <- runif(1000)
+resultado1 <- sapply(muestra, inversa_L1_mejor_modelo)
+hist(resultado1)
+```
+
+```{r}
+set.seed(1)
+Laj2 = cumulant2moment(kappa_mejor_l2) 
+
+mx = kappa_mejor_l2[1]+4*sqrt(kappa_mejor_l2[2])
+mx0 = kappa_mejor_l2[1]-2*sqrt(kappa_mejor_l2[2])
+
+
+xe = seq(0,mx, by=10000000)
+
+
+# estimación de la densidad de L 
+fx2.gch = dapx_gca(xe, raw.moments=Laj2, 
+                  support=c(0,mx), 
+                  basis='gamma')
+
+# acumulada
+FL2_mejor_modelo = function(t){
+  papx_gca(t, raw.moments=Laj2, 
+           support=c(0,mx), 
+           basis='gamma')}
+
+plot(xe,FL2_mejor_modelo(xe))
+plot(xe, fx2.gch)
+
+inversa_L2_mejor_modelo <- inverse(FL2_mejor_modelo,lower=0,upper=mx)
+
+muestra <- runif(1000)
+resultado2 <- sapply(muestra, inversa_L2_mejor_modelo)
+hist(resultado2)
+```
+
+```{r}
+resultados_mejor = resultado1 + resultado2
+hist(resultados_mejor)
+```
+Tvar resultados simulados
+```{r}
+t_var_mejor_modelo <- quantile(resultado, probs=0.95)
+t_var_mejor_modelo
+```
+
+### Peor modelo según AUC
+```{r}
+datos_peor_modelo <- cbind(datos[,c('Default', 'Saldos')], Impago = pesos_rf)
+peor_modelo_pago <- datos_peor_modelo[datos_peor_modelo['Impago'] < 0.1,]
+peor_modelo_impago <- datos_peor_modelo[datos_peor_modelo['Impago'] > 0.1,]
+```
+
+Se calculan cumulantes para ambos subconjuntos (En este caso se asume que $w_i=0$:
+```{r}
+lj = peor_modelo_pago[['Saldos']]
+pj = peor_modelo_pago[['Impago']]
+qj = 1 - pj
+
+#Cumulantes para L1
+kappa_peor_l1 = double(4)
+kappa_peor_l1[1] = sum(lj*pj)
+kappa_peor_l1[2] = sum(pj*qj*lj^2 )
+kappa_peor_l1[3] = sum(lj^3*pj*qj*(qj - pj))
+kappa_peor_l1[4] = sum(lj^4*pj*qj*(pj - 4*pj*qj  + qj^2))
+```
+
+```{r}
+lj = peor_modelo_impago[['Saldos']]
+pj = peor_modelo_impago[['Impago']]
+qj = 1 - pj
+
+#Cumulantes para L2
+kappa_peor_l2 = double(4)
+kappa_peor_l2[1] = sum(lj*pj)
+kappa_peor_l2[2] = sum(pj*qj*lj^2 )
+kappa_peor_l2[3] = sum(lj^3*pj*qj*(qj - pj))
+kappa_peor_l2[4] = sum(lj^4*pj*qj*(pj - 4*pj*qj  + qj^2))
+```
+
+```{r}
+set.seed(1)
+Laj = cumulant2moment(kappa_peor_l1) 
+
+mx = kappa_peor_l1[1]+4*sqrt(kappa_peor_l1[2])
+mx0 = kappa_peor_l1[1]-2*sqrt(kappa_peor_l1[2])
+
+
+xe = seq(0,mx, by=10000000)
+
+
+# estimación de la densidad de L 
+fx.gch = dapx_gca(xe, raw.moments=Laj, 
+                  support=c(0,mx), 
+                  basis='gamma')
+
+# acumulada
+FL1_peor_modelo = function(t){
+  papx_gca(t, raw.moments=Laj, 
+           support=c(0,mx), 
+           basis='gamma')}
+
+plot(xe,FL1_peor_modelo(xe))
+plot(xe, fx.gch)
+
+inversa_L1_peor_modelo <- inverse(FL1_peor_modelo,lower=0,upper=mx)
+
+muestra <- runif(1000)
+resultado_peor1 <- sapply(muestra, inversa_L1_peor_modelo)
+hist(resultado_peor1)
+```
+
+```{r}
+set.seed(1)
+Laj2 = cumulant2moment(kappa_peor_l2) 
+
+mx = kappa_peor_l2[1]+4*sqrt(kappa_peor_l2[2])
+mx0 = kappa_peor_l2[1]-2*sqrt(kappa_peor_l2[2])
+
+
+xe = seq(0,mx, by=10000000)
+
+
+# estimación de la densidad de L 
+fx2.gch = dapx_gca(xe, raw.moments=Laj2, 
+                  support=c(0,mx), 
+                  basis='gamma')
+
+# acumulada
+FL2_peor_modelo = function(t){
+  papx_gca(t, raw.moments=Laj2, 
+           support=c(0,mx), 
+           basis='gamma')}
+
+plot(xe,FL2_peor_modelo(xe))
+plot(xe, fx2.gch)
+
+inversa_L2_peor_modelo <- inverse(FL2_peor_modelo,lower=0,upper=mx)
+
+muestra <- runif(1000)
+resultado_peor2 <- sapply(muestra, inversa_L2_peor_modelo)
+hist(resultado_peor2)
+```
+
+```{r}
+resultados_peor <- resultado_peor1 + resultado_peor2
+hist(resultados_peor)
+```
+```{r}
+t_var_peor_modelo <- quantile(resultados_peor, probs=0.95)
+t_var_peor_modelo
+```
+
+## TVaR marginal:
+
+### Peor modelo:
+```{r}
+t.var_l1_peor <- mean(resultados_peor*ifelse(resultados_peor>t_var_peor_modelo, 1,0))/0.95
+t.var_l1_peor
+```
+
+### Mejor modelo:
+```{r}
+t.var_l1_mejor <- mean(resultados_mejor*ifelse(resultados_mejor>t_var_mejor_modelo, 1,0))/0.95
+t.var_l1_mejor
+```
