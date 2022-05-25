@@ -3,8 +3,8 @@ title: "Ejercicios basicos de modelamiento"
 author: "Santiago Franco"
 date: "12/5/2022"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 
@@ -180,7 +180,7 @@ modelo_depuracion1 <-  glm(Default ~ ., family = binomial, data=datos_modelo_1)
 summary(modelo_depuracion1)
 ```
 ```{r}
-data.frame(cor(datos_modelo_1[1:6]))
+correlaciones <- data.frame(cor(datos[4:10]))
 ```
 ```{r}
 datos_modelo_final <- datos[c('UtilNeta.Patrimonio', 'Ciclo.Efectivo', 'Pasivo.Activos', 'Default')]
@@ -262,6 +262,7 @@ library(randomForest)
 ```
 
 ```{r}
+set.seed(1)
 modelos_knn <- list()
 for (i in 1:10) {
   modelo_knn <- knn3(Default ~ ., data=datos_modelo_final, k=i)
@@ -479,7 +480,7 @@ hist(resultados_mejor)
 ```
 Tvar resultados simulados
 ```{r}
-t_var_mejor_modelo <- quantile(resultado, probs=0.95)
+t_var_mejor_modelo <- quantile(resultados_mejor, probs=0.95)
 t_var_mejor_modelo
 ```
 
