@@ -244,6 +244,11 @@ plot(x, type='simple')
 pesos_rf <- rf$votes[,2]
 plot(density(pesos_rf))
 ```
+```{r}
+predicciones_rf <- ifelse(pesos_rf > 0.2, 1, 0)
+predicciones_rf <- unlist(predicciones_rf)
+table(datos$Default, predicciones_rf)
+```
 
 
 ###Curva ROC arboles aleatorios
@@ -272,6 +277,14 @@ for (i in 1:10) {
 modelo_knn <- knn3(Default ~ ., data=datos_modelo_final, k=2)
 pesos <- predict(modelo_knn, newdata=datos_modelo_final, type ="prob")[,2]
 ```
+
+
+```{r}
+predicciones_knn <- predict(modelo_knn, newdata=datos_modelo_final)[,2]
+predicciones_knn <- ifelse(predicciones_knn > 0.1,1,0)
+table(datos$Default, predicciones_knn)
+```
+
 
 ```{r}
 codos <- unlist(modelos_knn)
@@ -304,26 +317,36 @@ library(e1071)
 
 ```{r}
 ##Tune
-set.seed(123)
+set.seed(1)
 
 modelos <- list()
 ajustados <- list()
 for (i in 1:200) {
   modelo <- svm(Default~., data=datos_modelo_final,kernel= "radial", cost=i)
   modelos[[i]] <- modelo
-  ajustados[[i]] <- sum(modelo$fitted==1)
+  ajustados[[i]] <- sum(modelo$fitted == datos$Default)
 }
+
+min(unlist(ajustados)/787)
 ```
 
 ```{r}
-modelo_svm_final <- svm(Default~., data=datos_modelo_final,kernel= "radial", cost=200, probability = TRUE)
+modelo_svm_final <- svm(Default~., data=datos_modelo_final,kernel= "radial", cost=50, probability = TRUE)
 ```
 
 ```{r}
 predicciones_modelo_svm_final <- predict(modelo_svm_final, datos_modelo_final,  probability= TRUE)
 probabilidades_default_svm <- attr(predicciones_modelo_svm_final, 'probabilities')[,2]
 plot(density(probabilidades_default_svm))
+
 ```
+
+```{r}
+predicciones_svm <- ifelse(probabilidades_default_svm > 0.1, 1,0)
+predicciones_svm <- unlist(predicciones_svm)
+table(predicciones_svm, datos$Default)
+```
+
 ### Curva ROC
 ```{r}
 roc_svm <- rocit(score=probabilidades_default_svm, class=datos_modelo_final$Default)
